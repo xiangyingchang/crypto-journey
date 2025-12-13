@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Crypto之路 - 加密货币盈亏记录工具">
+    <meta name="theme-color" content="#4f46e5">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <title>Crypto之路 - Crypto Journey</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="styles.css?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>🚀 Crypto之路</h1>
+            <!-- 顶部导航 -->
+            <nav class="top-nav">
+                <button class="nav-item active" data-page="pnlPage" onclick="switchPage('pnlPage')">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">盈亏统计</span>
+                </button>
+                <button class="nav-item" data-page="accountsPage" onclick="switchPage('accountsPage')">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-label">账户资产</span>
+                </button>
+            </nav>
+        </header>
+
+        <!-- 页面容器 -->
+        <div class="pages-wrapper">
+            <!-- 盈亏统计页面 -->
+            <div id="pnlPage" class="page active">
+                <div class="container">
+                    <!-- 总览统计 -->
+                    <section class="card stats-section">
+                        <div class="stats-header">
+                            <h2>📊 统计总览</h2>
+                            <button id="addEntryBtn" class="btn-add-circle" aria-label="添加记录" title="添加记录">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-card profit">
+                                <span class="stat-label">今日盈亏</span>
+                                <span class="stat-value" id="todayPnL">$0.00</span>
+                                <span class="stat-value-cny" id="todayPnLCNY">¥0.00</span>
+                            </div>
+                            <div class="stat-card total">
+                                <span class="stat-label">累计盈亏</span>
+                                <span class="stat-value" id="totalPnL">$0.00</span>
+                                <span class="stat-value-cny" id="totalPnLCNY">¥0.00</span>
+                            </div>
+                            <div class="stat-card monthly-total">
+                                <span class="stat-label">本月累计</span>
+                                <span class="stat-value" id="monthlyTotal">$0.00</span>
+                                <span class="stat-value-cny" id="monthlyTotalCNY">¥0.00</span>
+                            </div>
+                            <div class="stat-card weekly">
+                                <span class="stat-label">本周日均</span>
+                                <span class="stat-value" id="weeklyAvg">$0.00</span>
+                                <span class="stat-value-cny" id="weeklyAvgCNY">¥0.00</span>
+                            </div>
+                            <div class="stat-card monthly">
+                                <span class="stat-label">本月日均</span>
+                                <span class="stat-value" id="monthlyAvg">$0.00</span>
+                                <span class="stat-value-cny" id="monthlyAvgCNY">¥0.00</span>
+                            </div>
+                            <div class="stat-card history-avg">
+                                <span class="stat-label">历史日均</span>
+                                <span class="stat-value" id="historyAvg">$0.00</span>
+                                <span class="stat-value-cny" id="historyAvgCNY">¥0.00</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 图表区域 -->
+                    <section class="card chart-section">
+                        <h2>📈 趋势图表</h2>
+                        <div class="chart-tabs">
+                            <button class="tab-btn active" data-period="week">周视图</button>
+                            <button class="tab-btn" data-period="month">月视图</button>
+                            <button class="tab-btn" data-period="all">全部</button>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="pnlChart"></canvas>
+                        </div>
+                    </section>
+
+                    <!-- 历史记录 -->
+                    <section class="card history-section">
+                        <h2>📋 历史记录</h2>
+                        <div class="history-filters">
+                            <input type="month" id="historyMonth" placeholder="选择月份">
+                            <button id="clearFilterBtn" class="btn btn-small">清除筛选</button>
+                        </div>
+                        <div class="history-list" id="historyList">
+                            <p class="empty-state">暂无记录</p>
+                        </div>
+                    </section>
+
+                    <!-- 数据管理 -->
+                    <section class="card data-section">
+                        <h2>⚙️ 数据管理</h2>
+                        <div class="data-actions">
+                            <button id="syncBtn" class="btn btn-sync">☁️ 云端设置</button>
+                            <button id="exportBtn" class="btn">导出数据</button>
+                            <button id="importBtn" class="btn">导入数据</button>
+                            <button id="clearBtn" class="btn btn-danger">清除所有数据</button>
+                        </div>
+                        <input type="file" id="importFile" accept=".json" style="display: none;">
+                        <p class="sync-hint" id="syncHint">Token 仅保存在本地浏览器，不会上传到服务器</p>
+                    </section>
+
+                    <!-- 汇率设置 -->
+                    <section class="card exchange-rate-section">
+                        <h3>汇率设置</h3>
+                        <div class="exchange-rate-input">
+                            <label>1 USD = </label>
+                            <input type="number" id="exchangeRate" value="" step="0.01" min="0" placeholder="获取中...">
+                            <label> CNY</label>
+                            <button id="updateRateBtn" class="btn btn-small">手动更新</button>
+                            <button id="fetchRateBtn" class="btn btn-small btn-fetch">🔄 获取最新</button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 账户资产页面 -->
+            <div id="accountsPage" class="page">
+                <div class="container">
+                    <!-- 账户记账模块 -->
+                    <section class="card accounts-section">
+                        <div class="stats-header">
+                            <h2>💰 账户资产</h2>
+                            <button id="addAccountEntryBtn" class="btn-add-circle" aria-label="记录资产" title="记录资产">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- 账户总览 -->
+                        <div class="accounts-summary">
+                            <div class="account-total-card">
+                                <span class="account-total-label">总资产</span>
+                                <span class="account-total-value" id="totalAssets">$0</span>
+                                <span class="account-total-cny" id="totalAssetsCNY">¥0</span>
+                            </div>
+                        </div>
+                        <!-- 各账户金额 -->
+                        <div class="accounts-grid">
+                            <div class="account-card binance">
+                                <span class="account-name"><span class="account-dot binance-dot"></span>币安</span>
+                                <span class="account-value" id="binanceValue">$0</span>
+                                <span class="account-value-cny" id="binanceValueCNY">¥0</span>
+                            </div>
+                            <div class="account-card okx">
+                                <span class="account-name"><span class="account-dot okx-dot"></span>欧易</span>
+                                <span class="account-value" id="okxValue">$0</span>
+                                <span class="account-value-cny" id="okxValueCNY">¥0</span>
+                            </div>
+                            <div class="account-card wallet">
+                                <span class="account-name"><span class="account-dot wallet-dot"></span>钱包</span>
+                                <span class="account-value" id="walletValue">$0</span>
+                                <span class="account-value-cny" id="walletValueCNY">¥0</span>
+                            </div>
+                        </div>
+                        <!-- 账户趋势图 -->
+                        <div class="accounts-chart-section">
+                            <h3>资产趋势</h3>
+                            <div class="chart-container">
+                                <canvas id="accountsChart"></canvas>
+                            </div>
+                        </div>
+                        <!-- 账户历史记录 -->
+                        <div class="accounts-history">
+                            <h3>记录历史</h3>
+                            <div class="accounts-history-list" id="accountsHistoryList">
+                                <p class="empty-state">暂无记录</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>数据存储在本地浏览器中 | <span id="syncStatus" role="status">离线模式</span></p>
+        </footer>
+    </div>
+
+    <!-- 添加记录弹窗 -->
+    <div id="entryModal" class="modal-overlay" style="display: none;" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">📝 记录盈亏</h3>
+                <button id="closeModalBtn" class="modal-close" aria-label="关闭">&times;</button>
+            </div>
+            <form id="entryForm" novalidate>
+                <div class="form-group">
+                    <label for="entryDate">日期</label>
+                    <input type="date" id="entryDate" required aria-required="true">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="profitAmount">盈利 (USD)</label>
+                        <input type="number" id="profitAmount" placeholder="0.00" step="0.01" min="0" max="999999999" inputmode="decimal">
+                    </div>
+                    <div class="form-group">
+                        <label for="lossAmount">亏损 (USD)</label>
+                        <input type="number" id="lossAmount" placeholder="0.00" step="0.01" min="0" max="999999999" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="entryNote">备注（可选）</label>
+                    <input type="text" id="entryNote" placeholder="添加备注..." maxlength="200">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">添加记录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 账户记录弹窗 -->
+    <div id="accountModal" class="modal-overlay" style="display: none;" role="dialog" aria-labelledby="accountModalTitle" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="accountModalTitle">💰 记录账户资产</h3>
+                <button id="closeAccountModalBtn" class="modal-close" aria-label="关闭">&times;</button>
+            </div>
+            <form id="accountForm" novalidate>
+                <div class="form-group">
+                    <label for="accountDate">日期</label>
+                    <input type="date" id="accountDate" required aria-required="true">
+                </div>
+                <div class="form-group">
+                    <label for="binanceAmount">币安 (USD)</label>
+                    <input type="number" id="binanceAmount" placeholder="0" step="1" min="0" max="999999999" inputmode="decimal">
+                </div>
+                <div class="form-group">
+                    <label for="okxAmount">欧易 (USD)</label>
+                    <input type="number" id="okxAmount" placeholder="0" step="1" min="0" max="999999999" inputmode="decimal">
+                </div>
+                <div class="form-group">
+                    <label for="walletAmount">钱包 (USD)</label>
+                    <input type="number" id="walletAmount" placeholder="0" step="1" min="0" max="999999999" inputmode="decimal">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">保存记录</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js?v=2"></script>
+</body>
+</html>

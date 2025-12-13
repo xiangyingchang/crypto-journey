@@ -1,0 +1,77 @@
+name: Sync Finance Data
+
+on:
+  issues:
+    types: [opened, edited, closed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'finance-data')
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract and Save Data
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // 获取所有带有 finance-data 标签的 issues
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'finance-data',
+              state: 'open',
+              per_page: 100
+            });
+            
+            let allEntries = [];
+            let exchangeRate = 7.25;
+            
+            for (const issue of issues.data) {
+              try {
+                const data = JSON.parse(issue.body);
+                if (data.entries) {
+                  allEntries = allEntries.concat(data.entries);
+                }
+                if (data.exchangeRate) {
+                  exchangeRate = data.exchangeRate;
+                }
+              } catch (e) {
+                console.log('跳过无效数据:', issue.number);
+              }
+            }
+            
+            // 按日期去重，保留最新的
+            const entriesMap = new Map();
+            allEntries.forEach(entry => {
+              entriesMap.set(entry.date, entry);
+            });
+            
+            const finalData = {
+              version: '1.0',
+              lastSync: new Date().toISOString(),
+              exchangeRate,
+              entries: Array.from(entriesMap.values()).sort((a, b) => 
+                new Date(b.date) - new Date(a.date)
+              )
+            };
+            
+            fs.writeFileSync('data.json', JSON.stringify(finalData, null, 2));
+            console.log(`同步了 ${finalData.entries.length} 条记录`);
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data.json
+          git diff --staged --quiet || git commit -m "Sync finance data [skip ci]"
+          git push
