@@ -59,6 +59,7 @@ body {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -678,20 +679,20 @@ body {
     .history-pnl-cny {
         font-size: 0.7rem;
     }
-    
+
     /* 顶部导航响应式 */
     .top-nav {
         padding: 0 12px 12px;
     }
-    
+
     .nav-item {
         padding: 8px 16px;
     }
-    
+
     .nav-icon {
         font-size: 1rem;
     }
-    
+
     .nav-label {
         font-size: 0.8rem;
     }
@@ -759,6 +760,7 @@ body {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -798,12 +800,13 @@ body {
     color: white;
     padding: 12px 24px;
     border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    /* Ensure it is above modals */
     font-size: 0.9rem;
-    z-index: 1000;
     animation: slideUp 0.3s ease-out;
     max-width: 90%;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 @keyframes slideUp {
@@ -811,6 +814,7 @@ body {
         opacity: 0;
         transform: translateX(-50%) translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
@@ -979,7 +983,8 @@ body {
     width: 18px;
     height: 18px;
 }
-    height: 24px;
+
+height: 24px;
 }
 
 /* 弹窗头部 */
@@ -1024,7 +1029,7 @@ body {
 }
 
 .modal-info code {
-    background: rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.1);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: monospace;
@@ -1052,7 +1057,9 @@ body {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* 离线状态指示 */
@@ -1074,6 +1081,7 @@ body {
     from {
         transform: translateY(-100%);
     }
+
     to {
         transform: translateY(0);
     }
@@ -1276,23 +1284,23 @@ input:invalid {
         grid-template-columns: repeat(3, 1fr);
         gap: 8px;
     }
-    
+
     .account-card {
         padding: 12px 8px;
     }
-    
+
     .account-value {
         font-size: 1rem;
     }
-    
+
     .account-value-cny {
         font-size: 0.7rem;
     }
-    
+
     .account-total-value {
         font-size: 1.5rem;
     }
-    
+
     .account-history-values {
         flex-wrap: wrap;
         gap: 6px;
@@ -1301,6 +1309,7 @@ input:invalid {
 
 /* 减少动画（用户偏好） */
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
