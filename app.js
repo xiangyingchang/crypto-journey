@@ -714,18 +714,22 @@ function updateStatDisplay(usdId, cnyId, amount) {
     const usdEl = document.getElementById(usdId);
     const cnyEl = document.getElementById(cnyId);
 
+    if (!usdEl || !cnyEl) return;
+
     usdEl.textContent = formatUSD(amount);
     cnyEl.textContent = formatCNY(amount * exchangeRate);
 
-    // 更新颜色
-    const parent = usdEl.closest('.stat-card');
-    if (parent && !parent.classList.contains('profit') && !parent.classList.contains('total')
-        && !parent.classList.contains('weekly') && !parent.classList.contains('monthly')) {
-        if (amount > 0) {
-            usdEl.style.color = 'var(--success-color)';
-        } else if (amount < 0) {
-            usdEl.style.color = 'var(--danger-color)';
-        }
+    // 更新颜色：正数为绿，负数为红，0为默认
+    // 移除之前的类名限制，强制应用颜色
+    usdEl.style.color = ''; // 重置
+    cnyEl.style.color = '';
+
+    if (amount > 0) {
+        usdEl.style.color = 'var(--success-color)';
+    } else if (amount < 0) {
+        usdEl.style.color = 'var(--danger-color)';
+    } else {
+        usdEl.style.color = 'var(--text-primary)';
     }
 }
 
@@ -1354,14 +1358,19 @@ function updateSyncStatus() {
 }
 
 // 格式化工具函数
+// 格式化工具函数
 function formatUSD(amount) {
-    const prefix = amount >= 0 ? '+' : '';
-    return `${prefix}$${Math.round(Math.abs(amount))}`;
+    const absAmount = Math.round(Math.abs(amount));
+    if (amount < 0) return `-$${absAmount}`;
+    if (amount > 0) return `+$${absAmount}`;
+    return `$${absAmount}`;
 }
 
 function formatCNY(amount) {
-    const prefix = amount >= 0 ? '+' : '';
-    return `${prefix}¥${Math.round(Math.abs(amount))}`;
+    const absAmount = Math.round(Math.abs(amount));
+    if (amount < 0) return `-¥${absAmount}`;
+    if (amount > 0) return `+¥${absAmount}`;
+    return `¥${absAmount}`;
 }
 
 function formatDate(dateStr) {
