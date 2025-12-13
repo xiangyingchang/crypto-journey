@@ -1613,7 +1613,7 @@ function renderAccountsHistory() {
     }
 
     const html = accountEntries.slice(0, 30).map(entry => `
-        < div class="account-history-item" data - id="${entry.id}" >
+        <div class="account-history-item" data-id="${entry.id}">
             <span class="account-history-date">${formatDateCompact(entry.date)}</span>
             <div class="account-history-values">
                 <span>🟡 $${Math.round(entry.binance).toLocaleString()}</span>
@@ -1624,7 +1624,7 @@ function renderAccountsHistory() {
             <div class="account-history-actions">
                 <button class="delete-btn" onclick="deleteAccountEntry(${entry.id})" title="删除">🗑️</button>
             </div>
-        </div >
+        </div>
         `).join('');
 
     list.innerHTML = html;
