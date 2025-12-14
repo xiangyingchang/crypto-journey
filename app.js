@@ -162,6 +162,9 @@ async function init() {
     // 先获取最新汇率
     await loadExchangeRate();
 
+    // 加载账户数据（确保在 loadData 之前加载，防止自动同步时上传空数据）
+    loadAccountsData();
+
     // 如果未配置云端，先弹出配置对话框，但继续加载本地数据
     if (!githubToken || !gistId) {
         showCloudConfigDialog(true); // true 表示首次配置
@@ -1485,7 +1488,7 @@ function saveAccountsData() {
 
 // 初始化账户模块
 function initAccountsModule() {
-    loadAccountsData();
+    // loadAccountsData(); // 已在 init() 中提前加载，避免覆盖问题
     bindAccountsEvents();
     updateAccountsDisplay();
     initAccountsChart();
