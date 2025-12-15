@@ -303,13 +303,39 @@ async function loadData() {
                             });
                         }
 
-                        // 处理账户数据（同理合并，暂简化为云端覆盖或本地优先，这里沿用之前逻辑或也做合并？）
-                        // 原逻辑对于账户数据是云端覆盖本地。如果有离线修改账户，也需要合并。
-                        // 鉴于账户只有一份状态记录（非流水），这里保留云端优先，或者比较 updated 时间。
-                        // 之前的逻辑：
+                        // 处理账户数据 - 使用智能合并（与盈亏数据一致）
                         if (cloudData.accountEntries && Array.isArray(cloudData.accountEntries)) {
-                            accountEntries = cloudData.accountEntries; // 暂时保持云端为主
+                            // 获取本地账户数据
+                            const localAccountEntries = [...accountEntries];
+                            
+                            // 验证并清洗云端账户数据
+                            const cloudAccountEntries = cloudData.accountEntries
+                                .filter(e => e && typeof e === 'object' && e.date)
+                                .map(e => ({
+                                    id: e.id || Date.now(),
+                                    date: e.date,
+                                    binance: parseFloat(e.binance) || 0,
+                                    okx: parseFloat(e.okx) || 0,
+                                    wallet: parseFloat(e.wallet) || 0,
+                                    total: parseFloat(e.total) || 0,
+                                    createdAt: e.createdAt || new Date().toISOString()
+                                }));
+                            
+                            // 智能合并本地和云端账户数据
+                            const mergedAccountEntries = mergeAccountEntries(localAccountEntries, cloudAccountEntries);
+                            
+                            // 按日期排序（最新在前）
+                            mergedAccountEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+                            
+                            accountEntries = mergedAccountEntries;
                             saveAccountsData();
+                            
+                            // 如果合并后数据比云端多，触发反向同步
+                            if (mergedAccountEntries.length > cloudAccountEntries.length) {
+                                autoSyncToCloud().then(success => {
+                                    if (success) console.log('账户数据增量已同步至云端');
+                                });
+                            }
                         }
 
                         isOnline = true;
@@ -338,13 +364,45 @@ function mergeEntries(localList, cloudList) {
     localList.forEach(e => map.set(e.id, e));
 
     // 2. 放入云端数据（如果 ID 相同，以云端为准？或者以本地为准？
-    // 通常云端视为“已同步的真理”，但如果本地有修改意图...
+    // 通常云端视为"已同步的真理"，但如果本地有修改意图...
     // 这里采用：只要 ID 存在，就保留。如果冲突，这里优先保留云端数据（假设云端是多端同步的结果）
     // 或者，我们可以保留最后更新的那个。目前 app 没有 updatedAt，只有 createdAt。
     // 既然 ID 是时间戳，且不可变，那么 ID 相同内容应该相同。
     // 唯一的变数是如果在不同设备修改了同一条记录的 note。
     // 简单起见，覆盖策略：云端覆盖本地。但本地独有的保留。
     cloudList.forEach(e => map.set(e.id, e));
+
+    return Array.from(map.values());
+}
+
+// 合并账户数据（与 mergeEntries 类似，但账户数据以日期为唯一标识）
+function mergeAccountEntries(localList, cloudList) {
+    const map = new Map();
+
+    // 1. 放入本地数据（以日期为 key）
+    localList.forEach(e => {
+        if (e && e.date) {
+            map.set(e.date, e);
+        }
+    });
+
+    // 2. 放入云端数据
+    // 如果同一天有冲突，比较 createdAt 时间戳，保留较新的
+    cloudList.forEach(e => {
+        if (e && e.date) {
+            const existing = map.get(e.date);
+            if (!existing) {
+                map.set(e.date, e);
+            } else {
+                // 比较时间戳，保留较新的记录
+                const existingTime = new Date(existing.createdAt || 0).getTime();
+                const cloudTime = new Date(e.createdAt || 0).getTime();
+                if (cloudTime >= existingTime) {
+                    map.set(e.date, e);
+                }
+            }
+        }
+    });
 
     return Array.from(map.values());
 }
