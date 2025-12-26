@@ -11,8 +11,7 @@ const CONFIG = {
     RATE_CACHE_DURATION: 30 * 60 * 1000, // 30分钟缓存
     DEBOUNCE_DELAY: 300,
     TOAST_DURATION: 3000,
-    MAX_ENTRIES_DISPLAY: 100,
-    API_TIMEOUT: 10000,
+    MAX_DAYS_DISPLAY: 30, // 每次显示的天数
     API_TIMEOUT: 10000,
     EXCHANGE_API: 'https://api.exchangerate-api.com/v4/latest/USD',
     SYNC_STATE_KEY: 'financeTrackerNeedSync',
@@ -124,6 +123,7 @@ let isOnline = false;
 let githubToken = '';
 let gistId = '';
 let isLoading = false;
+let historyDisplayDays = CONFIG.MAX_DAYS_DISPLAY; // 当前显示的天数
 
 // DOM 元素
 const elements = {
@@ -545,9 +545,13 @@ function bindEvents() {
     }
 
     // 历史筛选
-    elements.historyMonth.addEventListener('change', renderHistory);
+    elements.historyMonth.addEventListener('change', () => {
+        historyDisplayDays = CONFIG.MAX_DAYS_DISPLAY; // 重置显示天数
+        renderHistory();
+    });
     elements.clearFilterBtn.addEventListener('click', () => {
         elements.historyMonth.value = '';
+        historyDisplayDays = CONFIG.MAX_DAYS_DISPLAY; // 重置显示天数
         renderHistory();
     });
 
@@ -808,7 +812,7 @@ function getDailyTotals() {
     return dailyMap;
 }
 
-// 渲染历史记录（按日期分组显示，支持折叠）
+// 渲染历史记录（按日期分组显示，支持折叠和按天数分页加载）
 function renderHistory() {
     const filterMonth = elements.historyMonth.value;
 
@@ -822,24 +826,28 @@ function renderHistory() {
         return;
     }
 
-    // 限制显示数量，提升性能
-    const displayEntries = filteredEntries.slice(0, CONFIG.MAX_ENTRIES_DISPLAY);
-
-    // 按日期分组
-    const groupedByDate = new Map();
-    displayEntries.forEach(entry => {
-        if (!groupedByDate.has(entry.date)) {
-            groupedByDate.set(entry.date, []);
+    // 先按日期分组所有记录
+    const allGroupedByDate = new Map();
+    filteredEntries.forEach(entry => {
+        if (!allGroupedByDate.has(entry.date)) {
+            allGroupedByDate.set(entry.date, []);
         }
-        groupedByDate.get(entry.date).push(entry);
+        allGroupedByDate.get(entry.date).push(entry);
     });
+
+    // 获取所有日期并排序（最新在前）
+    const allDates = Array.from(allGroupedByDate.keys()).sort((a, b) => new Date(b) - new Date(a));
+    const totalDays = allDates.length;
+
+    // 根据当前显示天数限制
+    const displayDates = allDates.slice(0, historyDisplayDays);
 
     // 使用 DocumentFragment 优化 DOM 操作
     const fragment = document.createDocumentFragment();
-    const today = DateUtil.getToday();
     let isFirst = true;
 
-    groupedByDate.forEach((dayEntries, date) => {
+    displayDates.forEach(date => {
+        const dayEntries = allGroupedByDate.get(date);
         const dayTotal = dayEntries.reduce((sum, e) => sum + e.pnl, 0);
         const dateObj = DateUtil.parseLocalDate(date);
         const weekday = dateObj.toLocaleDateString('zh-CN', { weekday: 'short' });
@@ -897,12 +905,30 @@ function renderHistory() {
     elements.historyList.innerHTML = '';
     elements.historyList.appendChild(fragment);
 
-    // 显示更多提示
-    if (filteredEntries.length > CONFIG.MAX_ENTRIES_DISPLAY) {
-        const moreHint = document.createElement('p');
-        moreHint.className = 'empty-state';
-        moreHint.textContent = `仅显示最近 ${CONFIG.MAX_ENTRIES_DISPLAY} 条记录，共 ${filteredEntries.length} 条`;
-        elements.historyList.appendChild(moreHint);
+    // 显示"查看更多"按钮或统计信息
+    const remainingDays = totalDays - historyDisplayDays;
+    if (remainingDays > 0) {
+        const loadMoreDiv = document.createElement('div');
+        loadMoreDiv.className = 'load-more-container';
+        loadMoreDiv.innerHTML = `
+            <button class="btn btn-load-more" id="loadMoreBtn">
+                查看更多 (还有 ${remainingDays} 天)
+            </button>
+            <p class="history-count-hint">已显示 ${displayDates.length} / ${totalDays} 天</p>
+        `;
+        elements.historyList.appendChild(loadMoreDiv);
+
+        // 绑定"查看更多"按钮事件
+        document.getElementById('loadMoreBtn').addEventListener('click', () => {
+            historyDisplayDays += CONFIG.MAX_DAYS_DISPLAY;
+            renderHistory();
+        });
+    } else if (totalDays > CONFIG.MAX_DAYS_DISPLAY) {
+        // 已全部显示，但总天数超过默认值时显示统计
+        const countHint = document.createElement('p');
+        countHint.className = 'history-count-hint';
+        countHint.textContent = `共 ${totalDays} 天记录`;
+        elements.historyList.appendChild(countHint);
     }
 }
 
