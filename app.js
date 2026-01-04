@@ -633,8 +633,8 @@ function switchPage(pageId) {
 // 暴露到全局，供 HTML onclick 调用
 window.switchPage = switchPage;
 
-// 处理表单提交
-async function handleFormSubmit(e) {
+// 处理表单提交（乐观更新：本地立即生效，云端异步同步）
+function handleFormSubmit(e) {
     e.preventDefault();
 
     const date = elements.entryDate.value;
@@ -678,27 +678,34 @@ async function handleFormSubmit(e) {
         return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
+    // 1. 本地立即保存
     saveData();
+    
+    // 2. 立即更新 UI
     updateUI();
 
-    // 同步到云端
-    const syncSuccess = await autoSyncToCloud();
-    if (syncSuccess) {
-        showToast('记录已添加并同步');
-    } else {
-        showToast('记录已添加（本地），云端同步失败');
-    }
-
-    // 重置表单
+    // 3. 重置表单
     elements.profitAmount.value = '';
     elements.lossAmount.value = '';
     elements.entryNote.value = '';
     setDefaultDate();
 
+    // 4. 立即关闭弹窗
     const entryModal = document.getElementById('entryModal');
     if (entryModal) {
         entryModal.style.display = 'none';
     }
+
+    // 5. 显示本地成功提示
+    showToast('记录已添加');
+
+    // 6. 异步后台同步到云端（不阻塞用户操作）
+    autoSyncToCloud().then(syncSuccess => {
+        if (syncSuccess) {
+            showToast('已同步到云端');
+        }
+        // 同步失败时不打扰用户，后台会自动重试
+    });
 }
 
 // 处理汇率更新
@@ -1613,8 +1620,8 @@ function bindAccountsEvents() {
     }
 }
 
-// 处理账户表单提交
-async function handleAccountFormSubmit(e) {
+// 处理账户表单提交（乐观更新：本地立即生效，云端异步同步）
+function handleAccountFormSubmit(e) {
     e.preventDefault();
 
     const date = document.getElementById('accountDate').value;
@@ -1651,19 +1658,26 @@ async function handleAccountFormSubmit(e) {
     // 按日期排序（最新在前）
     accountEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    // 1. 本地立即保存
     saveAccountsData();
+    
+    // 2. 立即更新 UI
     updateAccountsDisplay();
     updateAccountsChart();
 
-    // 同步到云端
-    const syncSuccess = await autoSyncToCloud();
-    if (syncSuccess) {
-        showToast(isUpdate ? '记录已更新并同步' : '记录已添加并同步');
-    } else {
-        showToast(isUpdate ? '记录已更新（本地），云端同步失败' : '记录已添加（本地），云端同步失败');
-    }
-
+    // 3. 立即关闭弹窗
     document.getElementById('accountModal').style.display = 'none';
+
+    // 4. 显示本地成功提示
+    showToast(isUpdate ? '记录已更新' : '记录已添加');
+
+    // 5. 异步后台同步到云端（不阻塞用户操作）
+    autoSyncToCloud().then(syncSuccess => {
+        if (syncSuccess) {
+            showToast('已同步到云端');
+        }
+        // 同步失败时不打扰用户，后台会自动重试
+    });
 }
 
 // 更新账户显示
