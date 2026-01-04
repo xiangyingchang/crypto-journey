@@ -15,7 +15,8 @@ const CONFIG = {
     API_TIMEOUT: 10000,
     EXCHANGE_API: 'https://api.exchangerate-api.com/v4/latest/USD',
     SYNC_STATE_KEY: 'financeTrackerNeedSync',
-    BACKGROUND_SYNC_INTERVAL: 60000 // 1分钟检查一次
+    BACKGROUND_SYNC_INTERVAL: 60000, // 1分钟检查一次
+    NET_INVESTMENT_CNY: 394601.82 // 净投入（人民币）
 };
 
 // ==================== 简单加密工具 ====================
@@ -1697,6 +1698,38 @@ function updateAccountsDisplay() {
 
         document.getElementById('totalAssets').textContent = `$${Math.round(latest.total).toLocaleString()} `;
         document.getElementById('totalAssetsCNY').textContent = `¥${Math.round(latest.total * exchangeRate).toLocaleString()} `;
+
+        // 计算累计收益：当日总资产(CNY) - 净投入(CNY)
+        const totalAssetsCNY = latest.total * exchangeRate;
+        const profitCNY = totalAssetsCNY - CONFIG.NET_INVESTMENT_CNY;
+        const profitUSD = profitCNY / exchangeRate;
+
+        // 更新累计收益显示
+        const profitCard = document.querySelector('.account-profit-card');
+        const profitValueEl = document.getElementById('totalProfit');
+        const profitCNYEl = document.getElementById('totalProfitCNY');
+
+        if (profitValueEl && profitCNYEl) {
+            // 格式化显示（带正负号）
+            const profitUSDStr = profitUSD >= 0 
+                ? `+$${Math.round(profitUSD).toLocaleString()}` 
+                : `-$${Math.round(Math.abs(profitUSD)).toLocaleString()}`;
+            const profitCNYStr = profitCNY >= 0 
+                ? `+¥${Math.round(profitCNY).toLocaleString()}` 
+                : `-¥${Math.round(Math.abs(profitCNY)).toLocaleString()}`;
+
+            profitValueEl.textContent = profitUSDStr;
+            profitCNYEl.textContent = profitCNYStr;
+
+            // 根据盈亏切换卡片颜色
+            if (profitCard) {
+                if (profitCNY < 0) {
+                    profitCard.classList.add('negative');
+                } else {
+                    profitCard.classList.remove('negative');
+                }
+            }
+        }
     } else {
         document.getElementById('binanceValue').textContent = '$0';
         document.getElementById('binanceValueCNY').textContent = '¥0';
@@ -1706,6 +1739,12 @@ function updateAccountsDisplay() {
         document.getElementById('walletValueCNY').textContent = '¥0';
         document.getElementById('totalAssets').textContent = '$0';
         document.getElementById('totalAssetsCNY').textContent = '¥0';
+
+        // 无数据时显示 0
+        const profitValueEl = document.getElementById('totalProfit');
+        const profitCNYEl = document.getElementById('totalProfitCNY');
+        if (profitValueEl) profitValueEl.textContent = '$0';
+        if (profitCNYEl) profitCNYEl.textContent = '¥0';
     }
 
     // 渲染历史记录

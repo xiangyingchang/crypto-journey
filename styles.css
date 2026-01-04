@@ -1012,9 +1012,6 @@ body {
     height: 18px;
 }
 
-height: 24px;
-}
-
 /* 弹窗头部 */
 .modal-header {
     margin-bottom: 20px;
@@ -1152,6 +1149,8 @@ input:invalid {
 
 .accounts-summary {
     margin-bottom: 16px;
+    display: flex;
+    gap: 12px;
 }
 
 .account-total-card {
@@ -1160,6 +1159,7 @@ input:invalid {
     padding: 20px;
     text-align: center;
     color: white;
+    flex: 1;
 }
 
 .account-total-label {
@@ -1178,6 +1178,38 @@ input:invalid {
 .account-total-cny {
     font-size: 1rem;
     opacity: 0.85;
+}
+
+/* 累计收益卡片 */
+.account-profit-card {
+    background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    color: white;
+    flex: 1;
+}
+
+.account-profit-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.account-profit-value {
+    font-size: 2rem;
+    font-weight: 700;
+    display: block;
+}
+
+.account-profit-cny {
+    font-size: 1rem;
+    opacity: 0.85;
+}
+
+.account-profit-card.negative {
+    background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
 }
 
 .accounts-grid {
@@ -1308,6 +1340,21 @@ input:invalid {
 
 /* 响应式：账户模块 */
 @media (max-width: 600px) {
+    .accounts-summary {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .account-total-card,
+    .account-profit-card {
+        padding: 16px;
+    }
+
+    .account-total-value,
+    .account-profit-value {
+        font-size: 1.5rem;
+    }
+
     .accounts-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: 8px;
@@ -1323,10 +1370,6 @@ input:invalid {
 
     .account-value-cny {
         font-size: 0.7rem;
-    }
-
-    .account-total-value {
-        font-size: 1.5rem;
     }
 
     .account-history-values {
