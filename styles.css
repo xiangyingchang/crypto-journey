@@ -1341,18 +1341,28 @@ input:invalid {
 /* 响应式：账户模块 */
 @media (max-width: 600px) {
     .accounts-summary {
-        flex-direction: column;
-        gap: 10px;
+        flex-direction: row;
+        gap: 8px;
     }
 
     .account-total-card,
     .account-profit-card {
-        padding: 16px;
+        padding: 12px 8px;
+    }
+
+    .account-total-label,
+    .account-profit-label {
+        font-size: 0.75rem;
     }
 
     .account-total-value,
     .account-profit-value {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
+    }
+
+    .account-total-cny,
+    .account-profit-cny {
+        font-size: 0.8rem;
     }
 
     .accounts-grid {
