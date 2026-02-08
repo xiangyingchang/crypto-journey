@@ -16,7 +16,7 @@ const CONFIG = {
     EXCHANGE_API: 'https://api.exchangerate-api.com/v4/latest/USD',
     SYNC_STATE_KEY: 'financeTrackerNeedSync',
     BACKGROUND_SYNC_INTERVAL: 60000, // 1分钟检查一次
-    NET_INVESTMENT_CNY: 394601.82 // 净投入（人民币）
+    NET_INVESTMENT_CNY: 424601.82 // 净投入（人民币）
 };
 
 // ==================== 简单加密工具 ====================
@@ -308,7 +308,7 @@ async function loadData() {
                         if (cloudData.accountEntries && Array.isArray(cloudData.accountEntries)) {
                             // 获取本地账户数据
                             const localAccountEntries = [...accountEntries];
-                            
+
                             // 验证并清洗云端账户数据
                             const cloudAccountEntries = cloudData.accountEntries
                                 .filter(e => e && typeof e === 'object' && e.date)
@@ -321,16 +321,16 @@ async function loadData() {
                                     total: parseFloat(e.total) || 0,
                                     createdAt: e.createdAt || new Date().toISOString()
                                 }));
-                            
+
                             // 智能合并本地和云端账户数据
                             const mergedAccountEntries = mergeAccountEntries(localAccountEntries, cloudAccountEntries);
-                            
+
                             // 按日期排序（最新在前）
                             mergedAccountEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
-                            
+
                             accountEntries = mergedAccountEntries;
                             saveAccountsData();
-                            
+
                             // 如果合并后数据比云端多，触发反向同步
                             if (mergedAccountEntries.length > cloudAccountEntries.length) {
                                 autoSyncToCloud().then(success => {
@@ -681,7 +681,7 @@ function handleFormSubmit(e) {
 
     // 1. 本地立即保存
     saveData();
-    
+
     // 2. 立即更新 UI
     updateUI();
 
@@ -1232,16 +1232,16 @@ async function autoSyncToCloud(retryCount = 0) {
             // 只是这样会覆盖云端（如果云端其实有数据但没取到）。
             // 改进：如果 Fetch 失败，且不是因为 404，最好中止同步以通过下一次重试解决，避免覆盖。
             if (retryCount < 2) {
-                 // 稍微等待后重试整个流程
-                 await new Promise(r => setTimeout(r, 1000));
-                 return autoSyncToCloud(retryCount + 1);
+                // 稍微等待后重试整个流程
+                await new Promise(r => setTimeout(r, 1000));
+                return autoSyncToCloud(retryCount + 1);
             }
         }
 
         // 2. 合并数据（Merge）
         // 注意：mergeEntries 函数应该处理去重逻辑
         const mergedEntries = mergeEntries(entries, cloudEntries);
-        
+
         // 重新排序
         mergedEntries.sort((a, b) => {
             if (a.date !== b.date) {
@@ -1258,16 +1258,16 @@ async function autoSyncToCloud(retryCount = 0) {
         // 更新本地内存和存储（确保本地也是最新合并后的状态）
         // 这一步很重要，防止下次同步时本地还是旧的
         if (mergedEntries.length > entries.length || mergedAccountEntries.length > localAccounts.length) {
-             entries = mergedEntries;
-             accountEntries = mergedAccountEntries;
-             saveData();
-             saveAccountsData();
-             updateUI();
-             // 如果在账户页面，刷新账户图表
-             if (typeof updateAccountsChart === 'function') {
-                 updateAccountsChart();
-             }
-             showToast('已合并云端新数据');
+            entries = mergedEntries;
+            accountEntries = mergedAccountEntries;
+            saveData();
+            saveAccountsData();
+            updateUI();
+            // 如果在账户页面，刷新账户图表
+            if (typeof updateAccountsChart === 'function') {
+                updateAccountsChart();
+            }
+            showToast('已合并云端新数据');
         }
 
         // 3. 推送合并后的数据（Push）
@@ -1753,7 +1753,7 @@ function handleAccountFormSubmit(e) {
 
     // 1. 本地立即保存
     saveAccountsData();
-    
+
     // 2. 立即更新 UI
     updateAccountsDisplay();
     updateAccountsChart();
@@ -1803,11 +1803,11 @@ function updateAccountsDisplay() {
 
         if (profitValueEl && profitCNYEl) {
             // 格式化显示（带正负号）
-            const profitUSDStr = profitUSD >= 0 
-                ? `+$${Math.round(profitUSD).toLocaleString()}` 
+            const profitUSDStr = profitUSD >= 0
+                ? `+$${Math.round(profitUSD).toLocaleString()}`
                 : `-$${Math.round(Math.abs(profitUSD)).toLocaleString()}`;
-            const profitCNYStr = profitCNY >= 0 
-                ? `+¥${Math.round(profitCNY).toLocaleString()}` 
+            const profitCNYStr = profitCNY >= 0
+                ? `+¥${Math.round(profitCNY).toLocaleString()}`
                 : `-¥${Math.round(Math.abs(profitCNY)).toLocaleString()}`;
 
             profitValueEl.textContent = profitUSDStr;
