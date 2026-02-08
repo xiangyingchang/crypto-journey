@@ -1179,12 +1179,104 @@ async function autoSyncToCloud(retryCount = 0) {
     }
 
     try {
+        // 1. 先尝试获取云端最新数据（Fetch）
+        let cloudEntries = [];
+        let cloudAccountEntries = [];
+        let cloudData = null;
+
+        try {
+            const response = await fetchWithTimeout(`https://api.github.com/gists/${gistId}`, {
+                headers: {
+                    'Authorization': `token ${githubToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
+            if (response.ok) {
+                const gist = await response.json();
+                const fileContent = gist.files['finance-data.json']?.content;
+                if (fileContent) {
+                    cloudData = JSON.parse(fileContent);
+                    if (cloudData.entries && Array.isArray(cloudData.entries)) {
+                        cloudEntries = cloudData.entries
+                            .filter(e => e && typeof e === 'object' && e.id && e.date)
+                            .map(e => ({
+                                ...e,
+                                profit: parseFloat(e.profit) || 0,
+                                loss: parseFloat(e.loss) || 0,
+                                pnl: parseFloat(e.pnl) || 0,
+                                note: Validator.sanitizeString(e.note || '')
+                            }));
+                    }
+                    if (cloudData.accountEntries && Array.isArray(cloudData.accountEntries)) {
+                        cloudAccountEntries = cloudData.accountEntries
+                            .filter(e => e && typeof e === 'object' && e.date)
+                            .map(e => ({
+                                id: e.id || Date.now(),
+                                date: e.date,
+                                binance: parseFloat(e.binance) || 0,
+                                okx: parseFloat(e.okx) || 0,
+                                wallet: parseFloat(e.wallet) || 0,
+                                total: parseFloat(e.total) || 0,
+                                createdAt: e.createdAt || new Date().toISOString()
+                            }));
+                    }
+                }
+            }
+        } catch (fetchError) {
+            console.warn('获取云端数据失败，将尝试直接推送（风险操作）:', fetchError);
+            // 如果获取失败（比如网络问题），但还是要同步？
+            // 策略：如果是网络完全不通，下面推送也会失败。
+            // 如果是 Gist 不存在或获取错误，可能需要谨慎。
+            // 但为了保证本地数据不丢失，我们可能还是需要尝试推送，
+            // 只是这样会覆盖云端（如果云端其实有数据但没取到）。
+            // 改进：如果 Fetch 失败，且不是因为 404，最好中止同步以通过下一次重试解决，避免覆盖。
+            if (retryCount < 2) {
+                 // 稍微等待后重试整个流程
+                 await new Promise(r => setTimeout(r, 1000));
+                 return autoSyncToCloud(retryCount + 1);
+            }
+        }
+
+        // 2. 合并数据（Merge）
+        // 注意：mergeEntries 函数应该处理去重逻辑
+        const mergedEntries = mergeEntries(entries, cloudEntries);
+        
+        // 重新排序
+        mergedEntries.sort((a, b) => {
+            if (a.date !== b.date) {
+                return new Date(b.date) - new Date(a.date);
+            }
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        // 账户数据合并
+        const localAccounts = accountEntries || [];
+        const mergedAccountEntries = mergeAccountEntries(localAccounts, cloudAccountEntries);
+        mergedAccountEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // 更新本地内存和存储（确保本地也是最新合并后的状态）
+        // 这一步很重要，防止下次同步时本地还是旧的
+        if (mergedEntries.length > entries.length || mergedAccountEntries.length > localAccounts.length) {
+             entries = mergedEntries;
+             accountEntries = mergedAccountEntries;
+             saveData();
+             saveAccountsData();
+             updateUI();
+             // 如果在账户页面，刷新账户图表
+             if (typeof updateAccountsChart === 'function') {
+                 updateAccountsChart();
+             }
+             showToast('已合并云端新数据');
+        }
+
+        // 3. 推送合并后的数据（Push）
         const data = {
             version: '1.1',
             syncDate: new Date().toISOString(),
             exchangeRate,
-            entries,
-            accountEntries: accountEntries || []
+            entries: mergedEntries,
+            accountEntries: mergedAccountEntries
         };
 
         const response = await fetchWithTimeout(`https://api.github.com/gists/${gistId}`, {
