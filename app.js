@@ -7,6 +7,7 @@ const CONFIG = {
     TOKEN_KEY: 'financeTrackerToken',
     GIST_KEY: 'financeTrackerGistId',
     RATE_CACHE_KEY: 'financeTrackerRateCache',
+    DELETED_KEY: 'financeTrackerDeletedIds', // 已删除记录的墓碑集合
     DEFAULT_RATE: 7.25,
     RATE_CACHE_DURATION: 30 * 60 * 1000, // 30分钟缓存
     DEBOUNCE_DELAY: 300,
@@ -277,8 +278,12 @@ async function loadData() {
                                 }));
                         }
 
-                        // 3. 执行合并 (以 ID 为唯一标识)
-                        const mergedEntries = mergeEntries(localEntries, cloudEntries);
+                        // 合并云端墓碑到本地（支持多端删除同步）
+                        const cloudDeletedIds = (cloudData.deletedIds && Array.isArray(cloudData.deletedIds))
+                            ? cloudData.deletedIds : [];
+
+                        // 3. 执行合并 (以 ID 为唯一标识，同时过滤已删除记录)
+                        const mergedEntries = mergeEntries(localEntries, cloudEntries, cloudDeletedIds);
 
                         // 排序
                         mergedEntries.sort((a, b) => {
@@ -357,21 +362,48 @@ async function loadData() {
     }
 }
 
+// ==================== 墓碑工具函数（防止已删除记录被云端同步覆盖） ====================
+function getDeletedIds() {
+    try {
+        const stored = localStorage.getItem(CONFIG.DELETED_KEY);
+        return new Set(JSON.parse(stored) || []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function saveDeletedIds(set) {
+    try {
+        localStorage.setItem(CONFIG.DELETED_KEY, JSON.stringify([...set]));
+    } catch (e) {
+        console.error('保存已删除ID失败:', e);
+    }
+}
+
 // 合并两个记录数组（基于 ID 去重）
-function mergeEntries(localList, cloudList) {
+function mergeEntries(localList, cloudList, extraDeletedIds) {
+    // 获取本地墓碑集合，合并云端传来的墓碑（如有）
+    const deletedIds = getDeletedIds();
+    if (extraDeletedIds && Array.isArray(extraDeletedIds)) {
+        extraDeletedIds.forEach(id => deletedIds.add(String(id)));
+        saveDeletedIds(deletedIds); // 持久化合并后的墓碑
+    }
+
     const map = new Map();
 
-    // 1. 放入本地数据
-    localList.forEach(e => map.set(e.id, e));
+    // 1. 放入本地数据（本地已删除的不放入）
+    localList.forEach(e => {
+        if (!deletedIds.has(String(e.id))) {
+            map.set(e.id, e);
+        }
+    });
 
-    // 2. 放入云端数据（如果 ID 相同，以云端为准？或者以本地为准？
-    // 通常云端视为"已同步的真理"，但如果本地有修改意图...
-    // 这里采用：只要 ID 存在，就保留。如果冲突，这里优先保留云端数据（假设云端是多端同步的结果）
-    // 或者，我们可以保留最后更新的那个。目前 app 没有 updatedAt，只有 createdAt。
-    // 既然 ID 是时间戳，且不可变，那么 ID 相同内容应该相同。
-    // 唯一的变数是如果在不同设备修改了同一条记录的 note。
-    // 简单起见，覆盖策略：云端覆盖本地。但本地独有的保留。
-    cloudList.forEach(e => map.set(e.id, e));
+    // 2. 放入云端数据：如果该 ID 已被本地标记为删除，则跳过（不让它复活）
+    cloudList.forEach(e => {
+        if (!deletedIds.has(String(e.id))) {
+            map.set(e.id, e);
+        }
+    });
 
     return Array.from(map.values());
 }
@@ -950,6 +982,12 @@ function formatDateCompact(dateStr) {
 async function deleteEntry(id) {
     if (confirm('确定要删除这条记录吗？')) {
         entries = entries.filter(e => e.id !== id);
+
+        // 记录到墓碑集合，防止云端同步时把已删记录再次拉回来
+        const deletedIds = getDeletedIds();
+        deletedIds.add(String(id));
+        saveDeletedIds(deletedIds);
+
         saveData();
         updateUI();
 
@@ -1208,6 +1246,12 @@ async function autoSyncToCloud(retryCount = 0) {
                                 note: Validator.sanitizeString(e.note || '')
                             }));
                     }
+                    // 合并云端墓碑到本地（多端删除同步）
+                    if (cloudData.deletedIds && Array.isArray(cloudData.deletedIds)) {
+                        const localDeleted = getDeletedIds();
+                        cloudData.deletedIds.forEach(id => localDeleted.add(String(id)));
+                        saveDeletedIds(localDeleted);
+                    }
                     if (cloudData.accountEntries && Array.isArray(cloudData.accountEntries)) {
                         cloudAccountEntries = cloudData.accountEntries
                             .filter(e => e && typeof e === 'object' && e.date)
@@ -1276,7 +1320,8 @@ async function autoSyncToCloud(retryCount = 0) {
             syncDate: new Date().toISOString(),
             exchangeRate,
             entries: mergedEntries,
-            accountEntries: mergedAccountEntries
+            accountEntries: mergedAccountEntries,
+            deletedIds: [...getDeletedIds()] // 携带墓碑列表，支持多端删除同步
         };
 
         const response = await fetchWithTimeout(`https://api.github.com/gists/${gistId}`, {
