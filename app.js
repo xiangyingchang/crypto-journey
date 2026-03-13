@@ -1307,7 +1307,12 @@ async function autoSyncToCloud(retryCount = 0) {
 
         // 更新本地内存和存储（确保本地也是最新合并后的状态）
         // 这一步很重要，防止下次同步时本地还是旧的
-        if (mergedEntries.length > entries.length || mergedAccountEntries.length > localAccounts.length) {
+        // 注意：不能只判断 length 增加，删除场景下 length 会减小也需要更新
+        const entriesChanged = mergedEntries.length !== entries.length
+            || mergedAccountEntries.length !== localAccounts.length;
+        if (entriesChanged) {
+            const hasNewData = mergedEntries.length > entries.length
+                || mergedAccountEntries.length > localAccounts.length;
             entries = mergedEntries;
             accountEntries = mergedAccountEntries;
             saveData();
@@ -1317,7 +1322,9 @@ async function autoSyncToCloud(retryCount = 0) {
             if (typeof updateAccountsChart === 'function') {
                 updateAccountsChart();
             }
-            showToast('已合并云端新数据');
+            if (hasNewData) {
+                showToast('已合并云端新数据');
+            }
         }
 
         // 3. 推送合并后的数据（Push）
