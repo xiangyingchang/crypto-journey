@@ -299,13 +299,11 @@ async function loadData() {
                         // 更新本地存储
                         saveData();
 
-                        // 检查是否需要反向同步（如果合并结果比云端多/新）
-                        // 简单判断：如果数量不同，或者本地有云端没有的数据，则同步
-                        if (mergedEntries.length > cloudEntries.length) {
-                            // 使用防抖或直接同步，这里直接调用保存逻辑（复用 handleFormSubmit 中的同步部分逻辑，最好提取出来）
-                            // 由于 loadData 是初始化，我们可以异步触发一次同步
+                        // 检查是否需要反向同步
+                        // 注意：不能只判断 length 增加，删除场景下 length 会减小也需要推送墓碑
+                        if (mergedEntries.length !== cloudEntries.length) {
                             autoSyncToCloud().then(success => {
-                                if (success) showToast('已将本地增量数据同步至云端');
+                                if (success) showToast('已将本地数据同步至云端');
                             });
                         }
 
@@ -336,10 +334,10 @@ async function loadData() {
                             accountEntries = mergedAccountEntries;
                             saveAccountsData();
 
-                            // 如果合并后数据比云端多，触发反向同步
-                            if (mergedAccountEntries.length > cloudAccountEntries.length) {
+                            // 如果合并后数据与云端不同，触发反向同步（含删除场景）
+                            if (mergedAccountEntries.length !== cloudAccountEntries.length) {
                                 autoSyncToCloud().then(success => {
-                                    if (success) console.log('账户数据增量已同步至云端');
+                                    if (success) console.log('账户数据已同步至云端');
                                 });
                             }
                         }
@@ -399,9 +397,20 @@ function mergeEntries(localList, cloudList, extraDeletedIds) {
     });
 
     // 2. 放入云端数据：如果该 ID 已被本地标记为删除，则跳过（不让它复活）
+    //    如果本地已有该 ID，比较 createdAt，保留较新的记录
     cloudList.forEach(e => {
         if (!deletedIds.has(String(e.id))) {
-            map.set(e.id, e);
+            const existing = map.get(e.id);
+            if (!existing) {
+                map.set(e.id, e);
+            } else {
+                // 比较时间戳，保留较新的记录（避免旧云端数据覆盖本地最新编辑）
+                const existingTime = new Date(existing.createdAt || 0).getTime();
+                const cloudTime = new Date(e.createdAt || 0).getTime();
+                if (cloudTime >= existingTime) {
+                    map.set(e.id, e);
+                }
+            }
         }
     });
 
@@ -1930,14 +1939,19 @@ function renderAccountsHistory() {
 }
 
 // 删除账户记录
-function deleteAccountEntry(id) {
+async function deleteAccountEntry(id) {
     if (confirm('确定要删除这条记录吗？')) {
         accountEntries = accountEntries.filter(e => e.id !== id);
         saveAccountsData();
         updateAccountsDisplay();
         updateAccountsChart();
-        autoSyncToCloud();
-        showToast('记录已删除');
+        showToast('正在同步到云端...');
+        const success = await autoSyncToCloud();
+        if (success) {
+            showToast('记录已删除并同步');
+        } else {
+            showToast('删除成功，但云端同步失败');
+        }
     }
 }
 window.deleteAccountEntry = deleteAccountEntry;
