@@ -7,7 +7,8 @@ const CONFIG = {
     TOKEN_KEY: 'financeTrackerToken',
     GIST_KEY: 'financeTrackerGistId',
     RATE_CACHE_KEY: 'financeTrackerRateCache',
-    DELETED_KEY: 'financeTrackerDeletedIds', // 已删除记录的墓碑集合
+    DELETED_KEY: 'financeTrackerDeletedIds',         // 盈亏记录已删除 ID 墓碑集合
+    ACCOUNT_DELETED_KEY: 'financeTrackerAccountDeletedIds', // 账户记录已删除 ID 墓碑集合
     DEFAULT_RATE: 7.25,
     RATE_CACHE_DURATION: 30 * 60 * 1000, // 30分钟缓存
     DEBOUNCE_DELAY: 300,
@@ -375,6 +376,24 @@ function saveDeletedIds(set) {
         localStorage.setItem(CONFIG.DELETED_KEY, JSON.stringify([...set]));
     } catch (e) {
         console.error('保存已删除ID失败:', e);
+    }
+}
+
+// 账户记录墓碑（独立 key，防止与盈亏记录 ID 命名空间冲突）
+function getAccountDeletedIds() {
+    try {
+        const stored = localStorage.getItem(CONFIG.ACCOUNT_DELETED_KEY);
+        return new Set(JSON.parse(stored) || []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function saveAccountDeletedIds(set) {
+    try {
+        localStorage.setItem(CONFIG.ACCOUNT_DELETED_KEY, JSON.stringify([...set]));
+    } catch (e) {
+        console.error('保存账户已删除ID失败:', e);
     }
 }
 
@@ -1223,11 +1242,21 @@ function clearAllData() {
     }
 }
 
+// 同步锁：防止多个 autoSyncToCloud 并发执行（如 deleteEntry + focus 事件同时触发）
+let isSyncing = false;
+
 // 自动同步到云端（使用 Gist）- 带重试机制
 async function autoSyncToCloud(retryCount = 0) {
     if (!githubToken || !gistId) {
         return false;
     }
+
+    // 并发保护：如果已有同步在进行，直接跳过（除非是重试调用）
+    if (isSyncing && retryCount === 0) {
+        console.log('同步已在进行中，跳过本次触发');
+        return false;
+    }
+    isSyncing = true;
 
     try {
         // 1. 先尝试获取云端最新数据（Fetch）
@@ -1281,18 +1310,14 @@ async function autoSyncToCloud(retryCount = 0) {
                 }
             }
         } catch (fetchError) {
-            console.warn('获取云端数据失败，将尝试直接推送（风险操作）:', fetchError);
-            // 如果获取失败（比如网络问题），但还是要同步？
-            // 策略：如果是网络完全不通，下面推送也会失败。
-            // 如果是 Gist 不存在或获取错误，可能需要谨慎。
-            // 但为了保证本地数据不丢失，我们可能还是需要尝试推送，
-            // 只是这样会覆盖云端（如果云端其实有数据但没取到）。
-            // 改进：如果 Fetch 失败，且不是因为 404，最好中止同步以通过下一次重试解决，避免覆盖。
+            console.warn('获取云端数据失败:', fetchError);
             if (retryCount < 2) {
-                // 稍微等待后重试整个流程
                 await new Promise(r => setTimeout(r, 1000));
                 return autoSyncToCloud(retryCount + 1);
             }
+            // ⚠️ 重试耗尽：此时 cloudEntries 为空，继续推送会覆盖云端数据，必须中止
+            console.error('无法获取云端数据，中止同步以防止覆盖云端数据');
+            return false;
         }
 
         // 2. 合并数据（Merge）
@@ -1390,10 +1415,14 @@ async function autoSyncToCloud(retryCount = 0) {
     } catch (e) {
         console.error('云端同步失败:', e);
         if (retryCount < 1) {
+            isSyncing = false; // 重试前先释放锁
             await new Promise(r => setTimeout(r, 1000));
             return autoSyncToCloud(retryCount + 1);
         }
         return false;
+    } finally {
+        // 无论成功、失败、异常，最终都释放同步锁
+        isSyncing = false;
     }
 }
 
@@ -1942,6 +1971,12 @@ function renderAccountsHistory() {
 async function deleteAccountEntry(id) {
     if (confirm('确定要删除这条记录吗？')) {
         accountEntries = accountEntries.filter(e => e.id !== id);
+
+        // 记录到账户墓碑集合，防止云端同步时把已删记录再次拉回来
+        const deletedIds = getAccountDeletedIds();
+        deletedIds.add(String(id));
+        saveAccountDeletedIds(deletedIds);
+
         saveAccountsData();
         updateAccountsDisplay();
         updateAccountsChart();
