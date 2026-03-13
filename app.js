@@ -1173,6 +1173,8 @@ function importData(e) {
 
                 if (confirm(`确定要导入 ${validEntries.length} 条记录吗？这将覆盖现有数据。`)) {
                     entries = validEntries;
+                    // 清空墓碑，防止导入的记录 ID 与历史删除记录冲突被误过滤
+                    saveDeletedIds(new Set());
                     if (data.exchangeRate && Validator.isValidNumber(data.exchangeRate, 0.01, 100)) {
                         exchangeRate = data.exchangeRate;
                         elements.exchangeRateInput.value = exchangeRate.toFixed(2);
@@ -1202,6 +1204,8 @@ function clearAllData() {
     if (confirm('确定要清除所有数据吗？此操作不可恢复！')) {
         if (confirm('再次确认：所有记录将被永久删除！')) {
             entries = [];
+            // 同时清空墓碑，防止未来导入数据时 ID 被误过滤
+            saveDeletedIds(new Set());
             saveData();
             updateUI();
             autoSyncToCloud();
@@ -1284,7 +1288,9 @@ async function autoSyncToCloud(retryCount = 0) {
 
         // 2. 合并数据（Merge）
         // 注意：mergeEntries 函数应该处理去重逻辑
-        const mergedEntries = mergeEntries(entries, cloudEntries);
+        const cloudDeletedIds = (cloudData?.deletedIds && Array.isArray(cloudData.deletedIds))
+            ? cloudData.deletedIds : [];
+        const mergedEntries = mergeEntries(entries, cloudEntries, cloudDeletedIds);
 
         // 重新排序
         mergedEntries.sort((a, b) => {
